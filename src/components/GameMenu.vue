@@ -9,8 +9,7 @@
 
 <script lang="ts" setup>
 import { ref } from 'vue';
-import supabase from '../supabase'; // Dein Supabase-Client
-
+import supabase from '../supabase'; // Import Supabase client
 
 const creatorName = ref('')
 const sessionLink = ref('');

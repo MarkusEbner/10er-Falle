@@ -32,15 +32,22 @@
   </v-container>
 </template>
 
-<script setup>
+<script lang="ts" setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRoute } from 'vue-router';
 import supabase from '../supabase'; // Import Supabase client
 
+// Define Player type
+interface Player {
+  id: number;
+  name: string;
+}
+
 const route = useRoute();
 const sessionId = route.params.sessionId; // sessionId is now a string
 
-const players = ref([]);
+// Initialize players ref with the Player type
+const players = ref<Player[]>([]); // Specify the type here
 const playerName = ref('');
 const isPlayerJoined = computed(() => {
   return players.value.some(player => player.name === playerName.value);
@@ -48,7 +55,7 @@ const isPlayerJoined = computed(() => {
 
 const sessionData = ref({
   creator: '',
-  players: []
+  players: [] as Player[] // Specify the type for players in sessionData
 });
 
 // Fetch players and session creator information when the component is mounted
@@ -61,7 +68,7 @@ onMounted(async () => {
   if (error) {
     console.error(error);
   } else {
-    players.value = data;
+    players.value = data as Player[]; // Cast data to Player[] to ensure type safety
   }
 
   const { data: sessionInfo, error: sessionError } = await supabase
@@ -100,7 +107,7 @@ const joinSession = async () => {
         console.error('Error fetching players:', fetchError);
       } else {
         // Spieler zur Liste hinzufügen
-        players.value = data;
+        players.value = data as Player[]; // Cast data to Player[] to ensure type safety
       }
     }
 
@@ -120,8 +127,6 @@ const joinSession = async () => {
   }
 };
 
-
-
 // Start the game (only for the creator)
 const startGame = () => {
   if (isCreator.value) {
@@ -130,10 +135,3 @@ const startGame = () => {
   }
 };
 </script>
-
-<style scoped>
-/* Optional: Add some basic styling */
-button:disabled {
-  background-color: grey;
-}
-</style>
