@@ -73,7 +73,7 @@ const joinSession = async () => {
 };
 
 /** TODO: Listener for gamestart */
-const startListeningForGameStart = () => {
+/* const startListeningForGameStart = () => {
   const subscription = supabase
     .channel('public:game_sessions')
     .on(
@@ -94,7 +94,7 @@ const startListeningForGameStart = () => {
   onUnmounted(() => {
     supabase.removeChannel(subscription);
   });
-};
+}; */
 
 
 
