@@ -1,10 +1,13 @@
 <template>
   <v-container>
     <v-text-field v-model="creatorName" label="Dein Name"></v-text-field>
-    <v-btn @click="startGame">Neue 10er Falle Session starten</v-btn>
+    <v-btn @click="openSession">Neue 10er Falle Session eröffnen</v-btn>
     <v-divider/>
     <v-text-field v-if="showLink" v-model="sessionLink" label="Session-Link" readonly></v-text-field>
     <PlayerList :sessionId="sessionId" class="mt-4"/>
+    <v-btn v-if="sessionId" @click="startGame" color="success">
+      Start Game
+    </v-btn>
   </v-container>
 </template>
 
@@ -17,7 +20,7 @@ const sessionLink = ref('');
 const showLink = ref<boolean>(false)
 const sessionId = ref('')
 
-const startGame = async () => {
+const openSession = async () => {
    sessionId.value = Math.random().toString(36).substr(2, 8); // Generiere eine zufällige Session ID
     const { error } = await supabase
     .from('sessions')
@@ -39,6 +42,16 @@ const startGame = async () => {
       sessionLink.value = `https://10er-falle.vercel.app/join/${sessionId.value}`;
     }
   }
+};
+
+const startGame = async () => {
+  // Notify all players to roll a number
+  await supabase
+    .from('sessions')
+    .update({ game_started: true })
+    .eq('id', sessionId.value);
+
+  console.log('Game started!');
 };
 
 </script>

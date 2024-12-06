@@ -22,7 +22,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import supabase from '../supabase'; // Import Supabase client
 
@@ -33,7 +33,8 @@ interface Player {
 }
 
 const route = useRoute();
-const sessionId = route.params.sessionId; // sessionId is now a string
+const sessionId = route.params.sessionId as string; // sessionId is now a string
+const gameStarted = ref(false)
 
 // Initialize players ref with the Player type
 const players = ref<Player[]>([]); // Specify the type here
@@ -70,5 +71,31 @@ const joinSession = async () => {
     }
   }
 };
+
+/** TODO: Listener for gamestart */
+const startListeningForGameStart = () => {
+  const subscription = supabase
+    .channel('public:game_sessions')
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId.value}` },
+      (payload) => {
+        console.log('Game start event detected:', payload);
+
+        if (payload.new.game_started) {
+          gameStarted.value = true;
+          alert('The game has started!');
+        }
+      }
+    )
+    .subscribe();
+
+  // Unsubscribe on unmount
+  onUnmounted(() => {
+    supabase.removeChannel(subscription);
+  });
+};
+
+
 
 </script>
