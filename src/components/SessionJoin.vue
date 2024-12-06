@@ -15,20 +15,9 @@
       Join Session
     </v-btn>
 
-    <!-- Show start game button only if the user is the creator -->
-    <v-btn v-if="isCreator" @click="startGame" color="success">
-      Start Game
-    </v-btn>
     <v-divider class="mt-4"/>
-       <!-- Display list of players -->
-       <template v-if="players.length > 0">
-      <h2 class="mt-4">Aktuelle Spieler:</h2>
-      <v-list>
-        <v-list-item v-for="player in players" :key="player.id">
-              {{ player.name }}
-            </v-list-item>
-      </v-list>
-    </template>
+      
+        <PlayerList :sessionId="sessionId" />
   </v-container>
 </template>
 
@@ -53,39 +42,8 @@ const isPlayerJoined = computed(() => {
   return players.value.some(player => player.name === playerName.value);
 });
 
-const sessionData = ref({
-  creator: '',
-  players: [] as Player[] // Specify the type for players in sessionData
-});
-
-// Fetch players and session creator information when the component is mounted
-onMounted(async () => {
-  const { data, error } = await supabase
-    .from('players')
-    .select('id, name')
-    .eq('session_id', sessionId);
-
-  if (error) {
-    console.error(error);
-  } else {
-    players.value = data as Player[]; // Cast data to Player[] to ensure type safety
-  }
-
-  const { data: sessionInfo, error: sessionError } = await supabase
-    .from('sessions')
-    .select('creator')
-    .eq('id', sessionId)
-    .single();
-
-  if (sessionError) {
-    console.error(sessionError);
-  } else {
-    sessionData.value.creator = sessionInfo.creator;
-  }
-});
-
 // Check if the current user is the creator
-const isCreator = computed(() => sessionData.value.creator === playerName.value);
+// const isCreator = computed(() => sessionData.value.creator === playerName.value);
 
 const joinSession = async () => {
   if (playerName.value && !isPlayerJoined.value) {
@@ -110,28 +68,7 @@ const joinSession = async () => {
         players.value = data as Player[]; // Cast data to Player[] to ensure type safety
       }
     }
-
-    // Setze den Session Creator, wenn nicht bereits gesetzt
-    if (!sessionData.value.creator) {
-      const { error: creatorError } = await supabase
-        .from('sessions')
-        .update({ creator: playerName.value })
-        .eq('id', sessionId);
-
-      if (creatorError) {
-        console.error('Error updating creator:', creatorError);
-      } else {
-        sessionData.value.creator = playerName.value;
-      }
-    }
   }
 };
 
-// Start the game (only for the creator)
-const startGame = () => {
-  if (isCreator.value) {
-    alert('Game Started!');
-    // You can add further logic here to move to a game screen or state
-  }
-};
 </script>
