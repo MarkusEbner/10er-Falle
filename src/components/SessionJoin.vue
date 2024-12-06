@@ -78,7 +78,7 @@ const startListeningForGameStart = () => {
     .channel('public:game_sessions')
     .on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId.value}` },
+      { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
       (payload) => {
         console.log('Game start event detected:', payload);
 
