@@ -17,6 +17,7 @@ import supabase from '../supabase'; // Import Supabase client
 
 const creatorName = ref('')
 const sessionLink = ref('');
+const playerId = ref<number | null>(null); // Ref für die playerId
 const showLink = ref<boolean>(false)
 const sessionId = ref('')
 
@@ -30,13 +31,14 @@ const openSession = async () => {
     console.error('Fehler beim Erstellen der Session:', error);
   } else {
        // Füge den Spieler zur 'players'-Tabelle hinzu und setze die session_id
-       const { error: playerError } = await supabase
+       const { data, error: playerError } = await supabase
       .from('players')
-      .insert([{ name: creatorName.value, session_id: sessionId.value }]); // Setze den Spieler in die 'players'-Tabelle mit der session_id
-
+      .insert([{ name: creatorName.value, session_id: sessionId.value }]) // Setze den Spieler in die 'players'-Tabelle mit der session_id
+      .select('id')
     if (playerError) {
       console.error('Fehler beim Hinzufügen des Spielers:', playerError);
-    } else {
+    } else if ( data && data.length > 0){
+      playerId.value = data[0].id;
       // Zeige den generierten Link an, nachdem die Session und der Spieler gespeichert wurden
       showLink.value = true;
       sessionLink.value = `https://10er-falle.vercel.app/join/${sessionId.value}`;
@@ -51,7 +53,7 @@ const startGame = async () => {
     .update({ game_started: true })
     .eq('id', sessionId.value);
   if (!error) {
-    window.location.href = `/game/${sessionId.value}`;
+    window.location.href = `/game/${sessionId.value}/${playerId.value}`;
   }
   console.log('Game started!');
 };

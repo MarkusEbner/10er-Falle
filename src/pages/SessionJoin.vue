@@ -39,6 +39,7 @@ const gameStarted = ref(false)
 // Initialize players ref with the Player type
 const players = ref<Player[]>([]); // Specify the type here
 const playerName = ref('');
+const playerId = ref<number | null>(null); // Ref für die playerId
 const isPlayerJoined = computed(() => {
   return players.value.some(player => player.name === playerName.value);
 });
@@ -55,7 +56,7 @@ onMounted(() => {
       (payload) => {
         if (payload.new.game_started) {
           // Weiterleitung zur Spielseite
-          window.location.href = `/game/${sessionId}`;
+          window.location.href = `/game/${sessionId}/${playerId.value}`;
         }
       }
     )
@@ -67,16 +68,21 @@ onMounted(() => {
 
 const joinSession = async () => {
   if (playerName.value && !isPlayerJoined.value) {
-    // Spieler in der Tabelle "players" hinzufügen
-    const { error } = await supabase
+    // Spieler in der Tabelle "players" hinzufügen und die ID zurückgeben
+    const { data, error } = await supabase
       .from('players')
-      .insert([{ name: playerName.value, session_id: sessionId }]);
+      .insert([{ name: playerName.value, session_id: sessionId }])
+      .select('id') // Die ID des eingefügten Spielers zurückgeben
 
     if (error) {
       console.error('Error joining session:', error);
-    } else {
+    } else if (data && data.length > 0) {
+      // Spieler-ID speichern
+      playerId.value = data[0].id;
+      console.log('Joined session with playerId:', playerId.value);
+
       // Abrufen der aktuellen Spieler aus der Datenbank
-      const { data, error: fetchError } = await supabase
+      const { data: playersData, error: fetchError } = await supabase
         .from('players')
         .select('id, name')
         .eq('session_id', sessionId);
@@ -85,36 +91,10 @@ const joinSession = async () => {
         console.error('Error fetching players:', fetchError);
       } else {
         // Spieler zur Liste hinzufügen
-        players.value = data as Player[]; // Cast data to Player[] to ensure type safety
+        players.value = playersData as Player[];
       }
     }
   }
 };
-
-/** TODO: Listener for gamestart */
-/* const startListeningForGameStart = () => {
-  const subscription = supabase
-    .channel('public:game_sessions')
-    .on(
-      'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
-      (payload) => {
-        console.log('Game start event detected:', payload);
-
-        if (payload.new.game_started) {
-          gameStarted.value = true;
-          alert('The game has started!');
-        }
-      }
-    )
-    .subscribe();
-
-  // Unsubscribe on unmount
-  onUnmounted(() => {
-    supabase.removeChannel(subscription);
-  });
-}; */
-
-
 
 </script>

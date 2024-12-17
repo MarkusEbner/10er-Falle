@@ -13,7 +13,7 @@ import Game from '../pages/Game.vue';
 const routes = [
   { path: '/', name: 'GameMenu', component: GameMenu },
   { path: '/join/:sessionId', name: 'SessionJoin', component: SessionJoin },
-  { path: '/game/:sessionId', name: 'Game', component: Game },
+  { path: '/game/:sessionId/:playerId', name: 'Game', component: Game },
 ];
 
 const router = createRouter({
