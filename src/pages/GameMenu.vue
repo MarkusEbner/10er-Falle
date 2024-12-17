@@ -46,11 +46,13 @@ const openSession = async () => {
 
 const startGame = async () => {
   // Notify all players to roll a number
-  await supabase
+  const { error } = await supabase
     .from('sessions')
     .update({ game_started: true })
     .eq('id', sessionId.value);
-
+  if (!error) {
+    window.location.href = `/game/${sessionId.value}`;
+  }
   console.log('Game started!');
 };
 

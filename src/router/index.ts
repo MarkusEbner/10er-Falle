@@ -6,12 +6,14 @@
 
 // Composables
 import { createRouter, createWebHistory } from 'vue-router/auto'
-import GameMenu from '../components/GameMenu.vue'
-import SessionJoin from '../components/SessionJoin.vue';
+import GameMenu from '../pages/GameMenu.vue'
+import SessionJoin from '../pages/SessionJoin.vue';
+import Game from '../pages/Game.vue';
 
 const routes = [
   { path: '/', name: 'GameMenu', component: GameMenu },
   { path: '/join/:sessionId', name: 'SessionJoin', component: SessionJoin },
+  { path: '/game/:sessionId', name: 'Game', component: Game },
 ];
 
 const router = createRouter({

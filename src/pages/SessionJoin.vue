@@ -46,6 +46,25 @@ const isPlayerJoined = computed(() => {
 // Check if the current user is the creator
 // const isCreator = computed(() => sessionData.value.creator === playerName.value);
 
+onMounted(() => {
+  const channel = supabase
+    .channel('public:game_sessions') // Kanalname
+    .on(
+      'postgres_changes',
+      { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
+      (payload) => {
+        if (payload.new.game_started) {
+          // Weiterleitung zur Spielseite
+          window.location.href = `/game/${sessionId}`;
+        }
+      }
+    )
+    .subscribe();
+    onUnmounted(() => {
+    supabase.removeChannel(channel); // Abonnement aufräumen, wenn Komponente entfernt wird
+  });
+});
+
 const joinSession = async () => {
   if (playerName.value && !isPlayerJoined.value) {
     // Spieler in der Tabelle "players" hinzufügen
