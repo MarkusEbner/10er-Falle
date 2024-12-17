@@ -33,6 +33,7 @@
   
   // Würfeln
   // TODO subcription to update all other players
+  // Oder einfach scoreboard wie PlayerList.vue auslaugern!
   const rollDice = async () => {
     if (hasRolled.value) return;
   
