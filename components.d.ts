@@ -12,6 +12,7 @@ declare module 'vue' {
     PlayerList: typeof import('./src/components/PlayerList.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    Scoreboard: typeof import('./src/components/Scoreboard.vue')['default']
     SessionJoin: typeof import('./src/components/SessionJoin.vue')['default']
   }
 }
