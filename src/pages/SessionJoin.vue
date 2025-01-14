@@ -57,6 +57,7 @@ onMounted(() => {
         if (payload.new.game_started) {
           // Weiterleitung zur Spielseite
           window.location.href = `/game/${sessionId}/${playerId.value}`;
+          console.log('Game started!');
         }
       }
     )

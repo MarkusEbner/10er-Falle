@@ -22,29 +22,38 @@ const showLink = ref<boolean>(false)
 const sessionId = ref('')
 
 const openSession = async () => {
-   sessionId.value = Math.random().toString(36).substr(2, 8); // Generiere eine zufällige Session ID
-    const { error } = await supabase
-    .from('sessions')
-    .insert([{ id: sessionId.value, creator: creatorName.value }]); // Setze 'CreatorName' auf den tatsächlichen Namen des Erstellers
+  // Generate a random session ID and set it immediately
+  const newSessionId = Math.random().toString(36).substr(2, 8);
+  sessionId.value = newSessionId;
 
-  if (error) {
-    console.error('Fehler beim Erstellen der Session:', error);
-  } else {
-       // Füge den Spieler zur 'players'-Tabelle hinzu und setze die session_id
-       const { data, error: playerError } = await supabase
-      .from('players')
-      .insert([{ name: creatorName.value, session_id: sessionId.value }]) // Setze den Spieler in die 'players'-Tabelle mit der session_id
-      .select('id')
-    if (playerError) {
-      console.error('Fehler beim Hinzufügen des Spielers:', playerError);
-    } else if ( data && data.length > 0){
-      playerId.value = data[0].id;
-      // Zeige den generierten Link an, nachdem die Session und der Spieler gespeichert wurden
-      showLink.value = true;
-      sessionLink.value = `https://10er-falle.vercel.app/join/${sessionId.value}`;
-    }
+  // Insert the session into the 'sessions' table
+  const { error: sessionError } = await supabase
+    .from('sessions')
+    .insert([{ id: newSessionId, creator: creatorName.value }]);
+
+  if (sessionError) {
+    console.error('Fehler beim Erstellen der Session:', sessionError);
+    return;
+  }
+
+  // Insert the creator as a player in the 'players' table
+  const { data: playerData, error: playerError } = await supabase
+    .from('players')
+    .insert([{ name: creatorName.value, session_id: newSessionId }])
+    .select('id');
+
+  if (playerError) {
+    console.error('Fehler beim Hinzufügen des Spielers:', playerError);
+    return;
+  }
+
+  if (playerData && playerData.length > 0) {
+    playerId.value = playerData[0].id;
+    showLink.value = true;
+    sessionLink.value = `https://10er-falle.vercel.app/join/${newSessionId}`;
   }
 };
+
 
 const startGame = async () => {
   // Notify all players to roll a number
@@ -57,5 +66,7 @@ const startGame = async () => {
   }
   console.log('Game started!');
 };
+
+
 
 </script>
