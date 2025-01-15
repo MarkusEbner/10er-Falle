@@ -2,31 +2,39 @@
   <div>
     <v-card>
       <div v-if="sessionData">
-      <p>Aktueller Punktestand: {{ sessionData.current_score }}</p>
-      <p v-if="sessionData.game_over">Das Spiel ist beendet!</p>
-    </div>
+        <p v-if="sessionData.game_over">Das Spiel ist beendet! {{ currentPlayer?.name }} hat verloren!</p>
+      </div>
     </v-card>
 
     <v-card>
-      <h2>Scoreboard für Lebenswürfel:</h2>
-    <v-list v-if="players.length > 0">
-      <v-list-item v-for="player in players" :key="player.id">
+      <v-card-title>Würfeln</v-card-title>
+      <v-btn @click="rollLebenswürfel"> Lebenswürfel</v-btn>
+      <v-btn @click="rollSpielwürfel" color="primary" :disabled="!yourTurn" >
+      Spielwürfel würfeln!
+      </v-btn>
+      <v-divider/>
+      <v-card-title>Scoreboard für Lebenswürfel:</v-card-title>
+      <v-list v-if="players.length > 0">
+      <v-card-subtitle v-if="currentPlayer">Aktueller Spieler: {{ currentPlayer.name }}</v-card-subtitle >
+      <v-list-item v-for="player in players" :key="player.id" :class="{ 'current-player': player.id === currentPlayer?.id }">
+        
         <v-list-item-title>{{ player.name }}</v-list-item-title>
         <v-list-item-subtitle>Leben: {{ player.score }}</v-list-item-subtitle>
       </v-list-item>
     </v-list>
+    <v-card-title>Spielstand: {{ sessionData?.current_score }}</v-card-title>
+    <v-btn @click="reset">Spiel zurücksetzen</v-btn>
   </v-card>
-  
-    
   </div>
 </template>
 
 <script lang="ts" setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { useRoute } from 'vue-router';
 import supabase from '../supabase';
 
 export interface Player {
-  id: string;
+  id: number;
   name: string;
   score: number;
 }
@@ -34,15 +42,173 @@ export interface Player {
 export interface SessionData {
   current_score: number;
   game_over: boolean;
+  current_player_id: number;
+  player_order: number[];
 }
 
 const props = defineProps<{ sessionId: string }>();
 
+const route = useRoute();
+const playerId = ref(Number(route.params.playerId));
+
 const players = ref<Player[]>([]);
+const currentPlayer = ref<Player>();
+const currentPlayerIndex = ref<number>(0);
 const sessionData = ref<SessionData | null>(null);
+const yourTurn = ref<boolean>(false);
 
 let playersSubscription: any;
 let sessionSubscription: any;
+
+// Roll Dice für alle Spieler, todo vielleicht in scoreboard probieren
+ const rollLebenswürfel = async () => {
+  const diceRolls: { playerId: number, roll: number, name: string }[] = [];
+  for (const player of players.value) {
+    const roll = Math.floor(Math.random() * 6) + 1;
+    diceRolls.push({ playerId: player.id, roll, name: player.name });
+    player.score = roll; // Speichern des Wurfs
+  }
+
+   // Update alle Würfe in der DB
+   const { error } = await supabase
+    .from('players')
+    .upsert(diceRolls.map(dice => ({ id: dice.playerId, name:dice.name, session_id:props.sessionId, score: dice.roll })));
+
+  if (error) {
+    console.error('Fehler beim Aktualisieren der Würfe:', error);
+    return;
+  }
+
+   // Bestimme den Spieler mit dem höchsten Wurf
+  players.value = players.value.sort((a, b) => b.score! - a.score!); // Sortiere die Spieler nach dem Wurf (absteigend)
+   console.log('Spieler nach Wurf:', players.value);
+   currentPlayer.value = players.value[0]
+   currentPlayerIndex.value = 0;
+   console.log('currentPlayer:', currentPlayer.value);
+  // Setze den aktuellen Spieler in der Session und ändere die order
+  const { error: sessionError } = await supabase
+    .from('sessions')
+    .update({ current_player_id: players.value[0].id, current_score: players.value[0].score, player_order: players.value.map(player => player.id) })
+    .eq('id', props.sessionId);
+    
+  if (sessionError) {
+    console.error('Fehler beim Setzen des aktuellen Spielers:', sessionError);
+    return;
+  }
+} 
+
+const rollSpielwürfel = async () => {
+  if(!sessionData.value) {
+    console.error('SessionData not loaded');
+    return;
+  }
+  if (sessionData.value.game_over) {
+    console.error('Das Spiel ist bereits beendet');
+    return;
+  }
+  if(!currentPlayer.value) {
+    console.error('Current player not loaded');
+    return;
+  }
+  const aktuellerWurf = Math.floor(Math.random() * 6) + 1;
+  const allgemeinerSpielstand = sessionData.value.current_score + aktuellerWurf
+  console.log(`Aktueller Wurf: ${aktuellerWurf}. Neuer Spielstand: ${allgemeinerSpielstand}`);
+  if (allgemeinerSpielstand >= 16) {
+    await gameOverAlert();
+  } else if (allgemeinerSpielstand === 15){
+    await hochdrehen();
+  }
+  else {
+    const { error } = await supabase
+      .from('sessions')
+      .update({ current_score: allgemeinerSpielstand })
+      .eq('id', props.sessionId);
+    if (error) {
+      console.error('Fehler beim Aktualisieren des Spielstands:', error);
+    }
+    await switchToNextPlayer()
+  }
+}
+
+const gameOverAlert = async () => {
+    const { error } = await supabase
+      .from('sessions')
+      .update({ game_over: true })
+      .eq('id', props.sessionId);
+      // display loser and reset button
+    if (error) {
+      console.error('Fehler beim Beenden des Spiels:', error);
+    } else {
+      console.log('Das Spiel ist beendet');
+    }
+}
+
+const reset = async () => {
+  // Reset the game
+  const { error } = await supabase
+    .from('sessions')
+    .update({ current_score: 0, game_over: false })
+    .eq('id', props.sessionId);
+  if (error) {
+    console.error('Failed to reset game:', error);
+    return
+  }
+};
+
+const hochdrehen = async () => {
+  if(!currentPlayer.value) {
+    console.error('Current player not loaded');
+    return;
+  }
+  currentPlayer.value.score = currentPlayer.value.score + 1 
+    if (currentPlayer.value.score > 6) {
+      await gameOverAlert();
+    }
+    const { error } = await supabase
+    .from('players')
+    .update({ score: currentPlayer.value.score })
+    .eq('id', currentPlayer.value.id);
+    if (error) {
+      console.error('Fehler beim Leben hochdrehen:', error);
+      return;
+    } else {
+      const { error: sessionError } = await supabase
+      .from('sessions')
+      .update({ current_player_id: currentPlayer.value.id, current_score: currentPlayer.value.score })
+      .eq('id', props.sessionId);
+    
+      if (sessionError) {
+        console.error('Fehler beim Setzen des aktuellen Spielers:', sessionError);
+        return;
+      }
+      console.log(`Spieler ${currentPlayer.value.name} hat eine 15 gewürfelt. Er darf nochmal den Spielwürfel würfeln!`);
+    }
+}
+
+// Funktion zum Wechseln des aktuellen Spielers
+const switchToNextPlayer = async () => {
+  if(!sessionData.value) {
+    return;
+  }
+  console.log('player',players.value)
+  console.log('players order in session', sessionData.value.player_order)
+  currentPlayerIndex.value = sessionData.value.player_order.indexOf(sessionData.value.current_player_id);
+  const nextPlayerIndex = (currentPlayerIndex.value + 1) % sessionData.value.player_order.length;
+  const nextPlayerId = sessionData.value.player_order[nextPlayerIndex];
+  // currentPlayer.value = sessionData.value.player_order[nextPlayerIndex].;
+  yourTurn.value = !yourTurn.value;
+
+  const { error } = await supabase
+    .from('sessions')
+    .update({ current_player_id: nextPlayerId })
+    .eq('id', props.sessionId);
+
+  if (error) {
+    console.error('Fehler beim Aktualisieren des aktuellen Spielers:', error);
+  } else {
+    currentPlayerIndex.value = nextPlayerIndex;
+  }
+};
 
 // Funktion zum Abrufen der Spieler
 const fetchPlayers = async () => {
@@ -54,6 +220,11 @@ const fetchPlayers = async () => {
     console.error('Error fetching players:', error);
   } else {
     players.value = data as Player[];
+    const playerOrder = players.value.map(player => player.id);
+    await supabase
+      .from('sessions')
+      .update({ player_order: playerOrder })
+      .eq('id', props.sessionId);
   }
 };
 
@@ -61,7 +232,7 @@ const fetchPlayers = async () => {
 const fetchSessionData = async () => {
   const { data, error } = await supabase
     .from('sessions')
-    .select('current_score, game_over')
+    .select('current_score, game_over, current_player_id, player_order')
     .eq('id', props.sessionId)
     .single();
   if (error) {
@@ -96,6 +267,13 @@ const setupSubscriptions = () => {
         console.log('Session change:', payload);
         if (payload.new) {
           sessionData.value = payload.new as SessionData;
+          currentPlayer.value = players.value.find((player) => player.id === payload.new.current_player_id);
+          console.log('deine id:', playerId.value);
+          if(currentPlayer.value && currentPlayer.value.id === playerId.value) {
+            yourTurn.value = true;
+          } else {
+            yourTurn.value = false;
+          }
         }
       }
     )
@@ -124,3 +302,10 @@ onBeforeUnmount(() => {
   cleanupSubscriptions();
 });
 </script>
+
+<style scoped>
+.current-player {
+  background-color: red; /* Change this to your desired color */
+  font-weight: bold;
+}
+</style>
