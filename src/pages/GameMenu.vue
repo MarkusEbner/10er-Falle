@@ -3,7 +3,15 @@
     <v-text-field v-model="creatorName" label="Dein Name"></v-text-field>
     <v-btn @click="openSession">Neue 10er Falle Session eröffnen</v-btn>
     <v-divider/>
-    <v-text-field v-if="showLink" v-model="sessionLink" label="Session-Link" readonly></v-text-field>
+    <v-text-field 
+      v-if="showLink" 
+      v-model="sessionLink"
+      label="Session-Link" 
+      readonly 
+      appendInnerIcon="mdi-content-copy"
+      @click:append-inner="copyToClipboard"
+    >
+    </v-text-field>
     <PlayerList :sessionId="sessionId" class="mt-4"/>
     <v-btn v-if="sessionId" @click="startGame" color="success">
       Start Game
@@ -65,6 +73,14 @@ const startGame = async () => {
     window.location.href = `/game/${sessionId.value}/${playerId.value}`;
   }
   console.log('Game started!');
+};
+
+const copyToClipboard = () => {
+  navigator.clipboard.writeText(sessionLink.value).then(() => {
+    console.log('Session link copied to clipboard');
+  }).catch(err => {
+    console.error('Failed to copy session link: ', err);
+  });
 };
 
 
