@@ -2,15 +2,21 @@
   <div>
     <v-card>
       <div v-if="sessionData">
-        <p v-if="sessionData.game_over">Das Spiel ist beendet! {{ currentPlayer?.name }} hat verloren!</p>
+        <p v-if="sessionData?.game_over">Das Spiel ist beendet! {{ players.find((player) => player.id === sessionData?.current_player_id)?.name }} hat verloren!</p>
       </div>
     </v-card>
 
     <v-card>
-      <v-card-title>Würfeln</v-card-title>
-      <v-btn @click="rollLebenswürfel"> Lebenswürfel</v-btn>
-      <v-btn @click="rollSpielwürfel" color="primary" :disabled="!yourTurn" >
-      Spielwürfel würfeln!
+      <v-card-title>Du bist Spieler {{ playerName }} 
+        <v-icon icon="mdi-face-man"/> 
+      </v-card-title>
+      <v-card-title>Würfel
+        <v-icon icon="mdi-dice-6"/>    
+      </v-card-title>
+      <v-btn @click="rollLebenswürfel"> Lebenswürfel </v-btn>
+      <v-btn @click="rollSpielwürfel" color="primary" :disabled="!yourTurn">
+        Spielwürfel würfeln {{ sessionData?.last_roll }}
+        <v-icon :icon="getDiceIcon(sessionData?.last_roll)" class="ml-2"/>
       </v-btn>
       <v-divider/>
       <v-card-title>Scoreboard für Lebenswürfel:</v-card-title>
@@ -19,17 +25,20 @@
       <v-list-item v-for="player in players" :key="player.id" :class="{ 'current-player': player.id === currentPlayer?.id }">
         
         <v-list-item-title>{{ player.name }}</v-list-item-title>
-        <v-list-item-subtitle>Leben: {{ player.score }}</v-list-item-subtitle>
+        <v-list-item-subtitle>Leben: {{ player.score }}
+          <v-icon :icon="getDiceIcon(player.score)" class="ml-2"/>
+        </v-list-item-subtitle>
       </v-list-item>
     </v-list>
     <v-card-title>Spielstand: {{ sessionData?.current_score }}</v-card-title>
     <v-btn @click="reset">Spiel zurücksetzen</v-btn>
+    <v-btn v-if="yourTurn" @click="hochdrehen(false)">Hochdrehen</v-btn>
   </v-card>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import supabase from '../supabase';
 
@@ -41,6 +50,7 @@ export interface Player {
 
 export interface SessionData {
   current_score: number;
+  last_roll: number;
   game_over: boolean;
   current_player_id: number;
   player_order: number[];
@@ -50,17 +60,18 @@ const props = defineProps<{ sessionId: string }>();
 
 const route = useRoute();
 const playerId = ref(Number(route.params.playerId));
-
 const players = ref<Player[]>([]);
 const currentPlayer = ref<Player>();
 const currentPlayerIndex = ref<number>(0);
 const sessionData = ref<SessionData | null>(null);
 const yourTurn = ref<boolean>(false);
 
+const playerName = computed (() => players.value.find(player => player.id === playerId.value)?.name);
+
+
 let playersSubscription: any;
 let sessionSubscription: any;
 
-// Roll Dice für alle Spieler, todo vielleicht in scoreboard probieren
  const rollLebenswürfel = async () => {
   const diceRolls: { playerId: number, roll: number, name: string }[] = [];
   for (const player of players.value) {
@@ -68,6 +79,7 @@ let sessionSubscription: any;
     diceRolls.push({ playerId: player.id, roll, name: player.name });
     player.score = roll; // Speichern des Wurfs
   }
+ 
 
    // Update alle Würfe in der DB
    const { error } = await supabase
@@ -114,20 +126,25 @@ const rollSpielwürfel = async () => {
   const allgemeinerSpielstand = sessionData.value.current_score + aktuellerWurf
   console.log(`Aktueller Wurf: ${aktuellerWurf}. Neuer Spielstand: ${allgemeinerSpielstand}`);
   if (allgemeinerSpielstand >= 16) {
+    // TODO Dialog aufplopppen, dass Spiel beendet ist, allgemeiner Score und letzten Wurf anzeigen
+    // Reset button anzeigen
     await gameOverAlert();
+    return
   } else if (allgemeinerSpielstand === 15){
-    await hochdrehen();
+    // TODO dieser fall muss hochdrehen für den nächsten Spieler erzwingen
+    await hochdrehen(true);
+    return
   }
-  else {
-    const { error } = await supabase
-      .from('sessions')
-      .update({ current_score: allgemeinerSpielstand })
-      .eq('id', props.sessionId);
-    if (error) {
-      console.error('Fehler beim Aktualisieren des Spielstands:', error);
-    }
-    await switchToNextPlayer()
+ 
+  const { error } = await supabase
+    .from('sessions')
+    .update({ current_score: allgemeinerSpielstand, last_roll: aktuellerWurf })
+    .eq('id', props.sessionId);
+  if (error) {
+    console.error('Fehler beim Aktualisieren des Spielstands:', error);
   }
+  await switchToNextPlayer()
+  
 }
 
 const gameOverAlert = async () => {
@@ -155,12 +172,20 @@ const reset = async () => {
   }
 };
 
-const hochdrehen = async () => {
+
+// todo muss im allgemeinen spiel auch möglich sein 
+// muss bei 15 einforced werden
+const hochdrehen = async (erzwungen: boolean) => {
   if(!currentPlayer.value) {
     console.error('Current player not loaded');
     return;
   }
+  if (erzwungen) {
+    await switchToNextPlayer()
+    currentPlayer.value = players.value[currentPlayerIndex.value]
+  }
   currentPlayer.value.score = currentPlayer.value.score + 1 
+
     if (currentPlayer.value.score > 6) {
       await gameOverAlert();
     }
@@ -172,6 +197,7 @@ const hochdrehen = async () => {
       console.error('Fehler beim Leben hochdrehen:', error);
       return;
     } else {
+      // todo move to edge case 15
       const { error: sessionError } = await supabase
       .from('sessions')
       .update({ current_player_id: currentPlayer.value.id, current_score: currentPlayer.value.score })
@@ -181,7 +207,7 @@ const hochdrehen = async () => {
         console.error('Fehler beim Setzen des aktuellen Spielers:', sessionError);
         return;
       }
-      console.log(`Spieler ${currentPlayer.value.name} hat eine 15 gewürfelt. Er darf nochmal den Spielwürfel würfeln!`);
+      console.log(`Spieler ${currentPlayer.value.name} hat hochgedreht. Er darf nochmal den Spielwürfel würfeln!`);
     }
 }
 
@@ -208,6 +234,21 @@ const switchToNextPlayer = async () => {
   } else {
     currentPlayerIndex.value = nextPlayerIndex;
   }
+};
+
+const getDiceIcon = (score: number | undefined): string => {
+  if(!score) {
+    return 'mdi-dice-d10';
+  }
+  const diceIcons: { [key: number]: string } = {
+    1: 'mdi-dice-1',
+    2: 'mdi-dice-2',
+    3: 'mdi-dice-3',
+    4: 'mdi-dice-4',
+    5: 'mdi-dice-5',
+    6: 'mdi-dice-6',
+  };
+  return diceIcons[score] || 'mdi-dice-6';
 };
 
 // Funktion zum Abrufen der Spieler
