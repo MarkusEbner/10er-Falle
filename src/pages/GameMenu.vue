@@ -1,7 +1,12 @@
 <template>
   <v-container>
-    <v-text-field v-model="creatorName" label="Dein Name"></v-text-field>
-    <v-btn @click="openSession">Neue 10er Falle Session eröffnen</v-btn>
+    <v-text-field v-model="creatorName"
+      label="Dein Name" 
+      :error-messages="creatorNameError"
+      @blur="validateCreatorName"
+      required
+    />
+    <v-btn @click="openSession" :disabled="!isCreatorNameValid">Neue 10er Falle Session eröffnen</v-btn>
     <v-divider/>
     <v-text-field 
       v-if="showLink" 
@@ -23,13 +28,31 @@
 import { ref } from 'vue';
 import supabase from '../supabase'; // Import Supabase client
 
+// TODO maybe reset these when user leaves the page because of caching issues (e.g. when user goes back to the menu player list could be empty)
 const creatorName = ref('')
 const sessionLink = ref('');
 const playerId = ref<number | null>(null); // Ref für die playerId
 const showLink = ref<boolean>(false)
+const isCreatorNameValid = ref(false); // Validierungsstatus
+const creatorNameError = ref<string | null>(null); // Fehlernachricht
 const sessionId = ref('')
 
+// Funktionen
+const validateCreatorName = () => {
+  if (!creatorName.value.trim()) {
+    creatorNameError.value = 'Name darf nicht leer sein.';
+    isCreatorNameValid.value = false;
+  } else {
+    creatorNameError.value = null;
+    isCreatorNameValid.value = true;
+  }
+};
+
 const openSession = async () => {
+  validateCreatorName();
+  if (!isCreatorNameValid.value) {
+    return; // Beenden, falls ungültig
+  }
   // Generate a random session ID and set it immediately
   const newSessionId = Math.random().toString(36).substr(2, 8);
   sessionId.value = newSessionId;

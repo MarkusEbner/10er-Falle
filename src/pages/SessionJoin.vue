@@ -5,19 +5,26 @@
     <!-- Input for player name -->
     <v-text-field 
       v-model="playerName" 
-      label="Enter your name" 
+      label="Dein Name" 
       outlined 
-      dense
+      dense 
+      required
+      :error-messages="playerNameError"
+      @blur="validatePlayerName"
     />
 
     <!-- Join session button -->
-    <v-btn @click="joinSession" :disabled="isPlayerJoined" color="primary">
+    <v-btn 
+      @click="joinSession" 
+      :disabled="!isPlayerNameValid || isPlayerJoined" 
+      color="primary"
+    >
       Join Session
     </v-btn>
 
-    <v-divider class="mt-4"/>
+    <v-divider class="mt-4" />
       
-        <PlayerList :sessionId="sessionId" />
+    <PlayerList :sessionId="sessionId" />
   </v-container>
 </template>
 
@@ -34,18 +41,29 @@ interface Player {
 
 const route = useRoute();
 const sessionId = route.params.sessionId as string; // sessionId is now a string
-const gameStarted = ref(false)
 
-// Initialize players ref with the Player type
-const players = ref<Player[]>([]); // Specify the type here
+// Initialize state variables
+const players = ref<Player[]>([]);
 const playerName = ref('');
-const playerId = ref<number | null>(null); // Ref für die playerId
+const playerId = ref<number | null>(null);
+const playerNameError = ref<string | null>(null); // For validation error messages
+const isPlayerNameValid = ref(false); // Tracks if the name is valid
+
+// Computed property to check if the player has already joined
 const isPlayerJoined = computed(() => {
-  return players.value.some(player => player.name === playerName.value);
+  return players.value.some(player => player.name === playerName.value.trim());
 });
 
-// Check if the current user is the creator
-// const isCreator = computed(() => sessionData.value.creator === playerName.value);
+// Validate player name
+const validatePlayerName = () => {
+  if (!playerName.value.trim()) {
+    playerNameError.value = 'Name darf nicht leer sein.';
+    isPlayerNameValid.value = false;
+  } else {
+    playerNameError.value = null;
+    isPlayerNameValid.value = true;
+  }
+};
 
 onMounted(() => {
   const channel = supabase
@@ -62,18 +80,20 @@ onMounted(() => {
       }
     )
     .subscribe();
-    onUnmounted(() => {
+
+  onUnmounted(() => {
     supabase.removeChannel(channel); // Abonnement aufräumen, wenn Komponente entfernt wird
   });
 });
 
 const joinSession = async () => {
-  if (playerName.value && !isPlayerJoined.value) {
+  validatePlayerName(); // Validate before joining
+  if (isPlayerNameValid.value && !isPlayerJoined.value) {
     // Spieler in der Tabelle "players" hinzufügen und die ID zurückgeben
     const { data, error } = await supabase
       .from('players')
-      .insert([{ name: playerName.value, session_id: sessionId }])
-      .select('id') // Die ID des eingefügten Spielers zurückgeben
+      .insert([{ name: playerName.value.trim(), session_id: sessionId }])
+      .select('id'); // Die ID des eingefügten Spielers zurückgeben
 
     if (error) {
       console.error('Error joining session:', error);
@@ -97,5 +117,4 @@ const joinSession = async () => {
     }
   }
 };
-
 </script>
