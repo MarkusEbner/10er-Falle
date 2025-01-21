@@ -1,12 +1,6 @@
 <template>
   <div>
     <v-card>
-      <div v-if="sessionData">
-        <p v-if="sessionData?.game_over">Das Spiel ist beendet! {{ players.find((player) => player.id === sessionData?.current_player_id)?.name }} hat verloren!</p>
-      </div>
-    </v-card>
-
-    <v-card>
       <v-card-title>Du bist Spieler {{ playerName }} 
         <v-icon icon="mdi-face-man"/> 
       </v-card-title>
@@ -25,7 +19,8 @@
       <v-list-item v-for="player in players" :key="player.id" :class="{ 'current-player': player.id === currentPlayer?.id }">
         
         <v-list-item-title>{{ player.name }}</v-list-item-title>
-        <v-list-item-subtitle>Leben: {{ player.score }}
+        <v-list-item-subtitle>
+          <v-icon icon="mdi-heart" class="ml-2"/>: 
           <v-icon :icon="getDiceIcon(player.score)" class="ml-2"/>
         </v-list-item-subtitle>
       </v-list-item>
@@ -35,6 +30,23 @@
     <v-btn v-if="yourTurn" @click="hochdrehen(false)">Hochdrehen</v-btn>
   </v-card>
   </div>
+
+  <v-dialog v-model="displayDialog">
+    <v-card>
+      <v-card-title>Das Spiel ist beendet!</v-card-title>
+      <v-card-text v-if="(currentPlayer?.score ?? 0) > 6">
+        <p>{{ players.find((player) => player.id === sessionData?.current_player_id)?.name }}  <v-icon icon="mdi-face-man"/>  hat durch hochdrehen verloren!</p>
+      </v-card-text>
+      <v-card-text v-else>
+        <p>{{ players.find((player) => player.id === sessionData?.current_player_id)?.name }}  <v-icon icon="mdi-face-man"/>  hat verloren!</p>
+        <p>Letzter Wurf: {{ sessionData?.last_roll }} <v-icon :icon="getDiceIcon(sessionData?.last_roll)" class="ml-2"/></p>
+        <p>Endstand: {{ sessionData?.current_score }}</p>
+      </v-card-text>
+      <v-card-actions>
+        <v-btn @click="reset">Spiel zurücksetzen</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script lang="ts" setup>
@@ -67,7 +79,7 @@ const sessionData = ref<SessionData | null>(null);
 const yourTurn = ref<boolean>(false);
 
 const playerName = computed (() => players.value.find(player => player.id === playerId.value)?.name);
-
+const displayDialog = computed(() => sessionData && sessionData.value?.game_over)
 
 let playersSubscription: any;
 let sessionSubscription: any;
@@ -126,12 +138,9 @@ const rollSpielwürfel = async () => {
   const allgemeinerSpielstand = sessionData.value.current_score + aktuellerWurf
   console.log(`Aktueller Wurf: ${aktuellerWurf}. Neuer Spielstand: ${allgemeinerSpielstand}`);
   if (allgemeinerSpielstand >= 16) {
-    // TODO Dialog aufplopppen, dass Spiel beendet ist, allgemeiner Score und letzten Wurf anzeigen
-    // Reset button anzeigen
-    await gameOverAlert();
+    await gameOverAlert(aktuellerWurf, allgemeinerSpielstand);
     return
   } else if (allgemeinerSpielstand === 15){
-    // TODO dieser fall muss hochdrehen für den nächsten Spieler erzwingen
     await hochdrehen(true);
     return
   }
@@ -147,17 +156,28 @@ const rollSpielwürfel = async () => {
   
 }
 
-const gameOverAlert = async () => {
+const gameOverAlert = async (aktuellerWurf?: number, allgemeinerSpielstand?: number) => {
+  // hier vielleicht last roll und current score speichern?
+  if (aktuellerWurf && allgemeinerSpielstand) {
     const { error } = await supabase
       .from('sessions')
-      .update({ game_over: true })
+      .update({ game_over: true, last_roll: aktuellerWurf, current_score: allgemeinerSpielstand })
       .eq('id', props.sessionId);
-      // display loser and reset button
+      if (error) {
+      console.error('Fehler beim Beenden des Spiels durch normales Würfeln:', error);
+    } 
+  } else {
+    // game_over durch hochgedreht
+    const { error } = await supabase
+      .from('sessions')
+      .update({ game_over: true})
+      .eq('id', props.sessionId);
+      
     if (error) {
-      console.error('Fehler beim Beenden des Spiels:', error);
-    } else {
-      console.log('Das Spiel ist beendet');
-    }
+      console.error('Fehler beim Beenden des Spiels durch Hochdrehen:', error);
+    } 
+  }
+      console.log('Das Spiel ist beendet');    
 }
 
 const reset = async () => {
@@ -187,6 +207,7 @@ const hochdrehen = async (erzwungen: boolean) => {
   currentPlayer.value.score = currentPlayer.value.score + 1 
 
     if (currentPlayer.value.score > 6) {
+      debugger
       await gameOverAlert();
     }
     const { error } = await supabase
