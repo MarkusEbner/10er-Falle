@@ -1,23 +1,26 @@
 <template>
   <v-container>
-    <v-text-field v-model="creatorName"
-      label="Dein Name" 
+    <v-text-field
+      v-model="creatorName"
+      label="Dein Name"
       :error-messages="creatorNameError"
-      @blur="validateCreatorName"
+      @input="creatorNameTouched = true"
       required
     />
-    <v-btn @click="openSession" :disabled="!isCreatorNameValid">Neue 10er Falle Session eröffnen</v-btn>
-    <v-divider/>
-    <v-text-field 
-      v-if="showLink" 
+    <v-btn @click="openSession" :disabled="!isCreatorNameValid"
+      >Neue 10er Falle Session eröffnen</v-btn
+    >
+    <v-divider />
+    <v-text-field
+      v-if="showLink"
       v-model="sessionLink"
-      label="Session-Link" 
-      readonly 
+      label="Session-Link"
+      readonly
       appendInnerIcon="mdi-content-copy"
       @click:append-inner="copyToClipboard"
     >
     </v-text-field>
-    <PlayerList :sessionId="sessionId" class="mt-4"/>
+    <PlayerList :sessionId="sessionId" class="mt-4" />
     <v-btn v-if="sessionId" @click="startGame" color="success">
       Start Game
     </v-btn>
@@ -25,31 +28,32 @@
 </template>
 
 <script lang="ts" setup>
-import { ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import supabase from '../supabase'; // Import Supabase client
 
 // TODO maybe reset these when user leaves the page because of caching issues (e.g. when user goes back to the menu player list could be empty)
-const creatorName = ref('')
+const creatorName = ref('');
 const sessionLink = ref('');
 const playerId = ref<number | null>(null); // Ref für die playerId
-const showLink = ref<boolean>(false)
-const isCreatorNameValid = ref(false); // Validierungsstatus
-const creatorNameError = ref<string | null>(null); // Fehlernachricht
-const sessionId = ref('')
+const showLink = ref<boolean>(false);
+const sessionId = ref('');
+const creatorNameTouched = ref(false);
 
-// Funktionen
-const validateCreatorName = () => {
-  if (!creatorName.value.trim()) {
-    creatorNameError.value = 'Name darf nicht leer sein.';
-    isCreatorNameValid.value = false;
-  } else {
-    creatorNameError.value = null;
-    isCreatorNameValid.value = true;
+const creatorNameError = computed(() => {
+  if (!creatorNameTouched.value) {
+    return null; // Noch keine Fehlermeldung anzeigen
   }
-};
+  if (!creatorName.value.trim()) {
+    return 'Name darf nicht leer sein.';
+  }
+  return null;
+});
+
+const isCreatorNameValid = computed(() => {
+  return creatorNameTouched.value && !creatorNameError.value;
+});
 
 const openSession = async () => {
-  validateCreatorName();
   if (!isCreatorNameValid.value) {
     return; // Beenden, falls ungültig
   }
@@ -85,7 +89,6 @@ const openSession = async () => {
   }
 };
 
-
 const startGame = async () => {
   // Notify all players to roll a number
   const { error } = await supabase
@@ -99,13 +102,21 @@ const startGame = async () => {
 };
 
 const copyToClipboard = () => {
-  navigator.clipboard.writeText(sessionLink.value).then(() => {
-    console.log('Session link copied to clipboard');
-  }).catch(err => {
-    console.error('Failed to copy session link: ', err);
-  });
+  navigator.clipboard
+    .writeText(sessionLink.value)
+    .then(() => {
+      console.log('Session link copied to clipboard');
+    })
+    .catch((err) => {
+      console.error('Failed to copy session link: ', err);
+    });
 };
 
-
-
+onMounted(() => {
+  creatorName.value = '';
+  sessionLink.value = '';
+  playerId.value = null;
+  showLink.value = false;
+  sessionId.value = '';
+});
 </script>
