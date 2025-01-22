@@ -3,27 +3,26 @@
     <h1>Join Session {{ sessionId }}</h1>
 
     <!-- Input for player name -->
-    <v-text-field 
-      v-model="playerName" 
-      label="Dein Name" 
-      outlined 
-      dense 
-      required
+    <v-text-field
+      v-model="playerName"
+      label="Dein Name"
+      outlined
       :error-messages="playerNameError"
-      @blur="validatePlayerName"
+      @input="playerNameTouched = true"
+      required
     />
 
     <!-- Join session button -->
-    <v-btn 
-      @click="joinSession" 
-      :disabled="!isPlayerNameValid || isPlayerJoined" 
+    <v-btn
+      @click="joinSession"
+      :disabled="!isPlayerNameValid || isPlayerJoined"
       color="primary"
     >
       Join Session
     </v-btn>
 
     <v-divider class="mt-4" />
-      
+
     <PlayerList :sessionId="sessionId" />
   </v-container>
 </template>
@@ -46,31 +45,40 @@ const sessionId = route.params.sessionId as string; // sessionId is now a string
 const players = ref<Player[]>([]);
 const playerName = ref('');
 const playerId = ref<number | null>(null);
-const playerNameError = ref<string | null>(null); // For validation error messages
-const isPlayerNameValid = ref(false); // Tracks if the name is valid
+const playerNameTouched = ref(false);
 
 // Computed property to check if the player has already joined
 const isPlayerJoined = computed(() => {
-  return players.value.some(player => player.name === playerName.value.trim());
+  return players.value.some(
+    (player) => player.name === playerName.value.trim()
+  );
 });
 
-// Validate player name
-const validatePlayerName = () => {
-  if (!playerName.value.trim()) {
-    playerNameError.value = 'Name darf nicht leer sein.';
-    isPlayerNameValid.value = false;
-  } else {
-    playerNameError.value = null;
-    isPlayerNameValid.value = true;
+const playerNameError = computed(() => {
+  if (!playerNameTouched.value) {
+    return null; // Noch keine Fehlermeldung anzeigen
   }
-};
+  if (!playerName.value.trim()) {
+    return 'Name darf nicht leer sein.';
+  }
+  return null;
+});
+
+const isPlayerNameValid = computed(() => {
+  return playerNameTouched.value && !playerNameError.value;
+});
 
 onMounted(() => {
   const channel = supabase
     .channel('public:game_sessions') // Kanalname
     .on(
       'postgres_changes',
-      { event: 'UPDATE', schema: 'public', table: 'sessions', filter: `id=eq.${sessionId}` },
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'sessions',
+        filter: `id=eq.${sessionId}`,
+      },
       (payload) => {
         if (payload.new.game_started) {
           // Weiterleitung zur Spielseite
@@ -87,7 +95,6 @@ onMounted(() => {
 });
 
 const joinSession = async () => {
-  validatePlayerName(); // Validate before joining
   if (isPlayerNameValid.value && !isPlayerJoined.value) {
     // Spieler in der Tabelle "players" hinzufügen und die ID zurückgeben
     const { data, error } = await supabase
