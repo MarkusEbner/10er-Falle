@@ -71,6 +71,21 @@
       </v-card-actions>
     </v-card>
   </v-dialog>
+  <v-dialog v-model="displayErzwungenDialog">
+    <v-card>
+      <v-card-text>15, hochdrehen wurde erzwungen!</v-card-text>
+      <v-card-text>
+        {{
+          players.find((player) => player.id === sessionData?.current_player_id)
+            ?.name
+        }}
+        <v-icon icon="mdi-face-man" /> musste hochdrehen!
+      </v-card-text>
+      <v-card-actions>
+        <v-btn @click="weiterNachHochdrehen">Weiter geht's!</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script lang="ts" setup>
@@ -90,6 +105,7 @@
     game_over: boolean;
     current_player_id: number;
     player_order: number[];
+    erzwungen: boolean;
   }
 
   const props = defineProps<{ sessionId: string }>();
@@ -107,6 +123,9 @@
   );
   const displayDialog = computed(
     () => sessionData && sessionData.value?.game_over
+  );
+  const displayErzwungenDialog = computed(
+    () => sessionData && sessionData.value?.erzwungen
   );
 
   let playersSubscription: any;
@@ -246,6 +265,17 @@
     }
   };
 
+  const weiterNachHochdrehen = async () => {
+    const { error } = await supabase
+      .from('sessions')
+      .update({ erzwungen: false })
+      .eq('id', props.sessionId);
+    if (error) {
+      console.error('Failed to reset game:', error);
+      return;
+    }
+  };
+
   // todo muss im allgemeinen spiel auch möglich sein
   // muss bei 15 einforced werden
   const hochdrehen = async (erzwungen: boolean) => {
@@ -254,6 +284,14 @@
       return;
     }
     if (erzwungen) {
+      const { error } = await supabase
+        .from('sessions')
+        .update({ erzwungen: true })
+        .eq('id', props.sessionId);
+      if (error) {
+        console.error('Fehler beim erzwingen:', error);
+        return;
+      }
       await switchToNextPlayer();
       currentPlayer.value = players.value[currentPlayerIndex.value];
     }
